@@ -122,9 +122,17 @@ def demo(data_dir):
     pose_conf = None
     try:
         import pickle
-        with open("example_diff9d.pkl", "rb") as f:
-            diff9d_data = pickle.load(f)
-        pose_conf = pose_confidence_from_diff9d(diff9d_data)
+        if cfgs.diff9d_pkl is not None:
+            try:
+                with open(cfgs.diff9d_pkl, "rb") as f:
+                    diff9d_data = pickle.load(f)
+                pose_conf = pose_confidence_from_diff9d(diff9d_data)
+                print(f"[EI] Loaded Diff9D pkl: {cfgs.diff9d_pkl}")
+                print(f"[EI] Pose confidence = {pose_conf:.4f}")
+            except Exception as e:
+                print("[EI] Failed to load Diff9D pkl:", e)
+        else:
+            print("[EI] No Diff9D pkl provided, using grasp-only baseline")
         print(f"[EI] Pose confidence = {pose_conf:.3f}")
     except Exception as e:
         print("[EI] Pose confidence unavailable:", e)
@@ -133,7 +141,7 @@ def demo(data_dir):
         gg = collision_detection(gg, np.array(cloud.points))
     # ---- EI s2b: pose-aware grasp re-ranking (lightweight) ----
     try:
-        import numpy as np
+        import numpy
         pose_scores = np.array([pose_conf]) if pose_conf is not None else np.array([])
         gg.scores = rerank_grasps_by_pose_confidence(
             gg.scores,
