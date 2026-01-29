@@ -2,6 +2,7 @@
     Author: chenxi-wang
 """
 
+from utils.pose_gating import pose_confidence_from_diff9d
 import os
 import sys
 import numpy as np
@@ -115,6 +116,17 @@ def demo(data_dir):
     net = get_net()
     end_points, cloud = get_and_process_data(data_dir)
     gg = get_grasps(net, end_points)
+    # ---- EI s2a: pose confidence (Diff9D side, no effect yet) ----
+    pose_conf = None
+    try:
+        import pickle
+        with open("example_diff9d.pkl", "rb") as f:
+            diff9d_data = pickle.load(f)
+        pose_conf = pose_confidence_from_diff9d(diff9d_data)
+        print(f"[EI] Pose confidence = {pose_conf:.3f}")
+    except Exception as e:
+        print("[EI] Pose confidence unavailable:", e)
+    # ---- EI s2a: pose confidence (Diff9D side, no effect yet) ----
     if cfgs.collision_thresh > 0:
         gg = collision_detection(gg, np.array(cloud.points))
     vis_grasps(gg, cloud)
