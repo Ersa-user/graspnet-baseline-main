@@ -2,6 +2,7 @@
     Author: chenxi-wang
 """
 
+from utils.pose_rerank import rerank_grasps_by_pose_confidence
 from utils.pose_gating import pose_confidence_from_diff9d
 import os
 import sys
@@ -129,6 +130,19 @@ def demo(data_dir):
     # ---- EI s2a: pose confidence (Diff9D side, no effect yet) ----
     if cfgs.collision_thresh > 0:
         gg = collision_detection(gg, np.array(cloud.points))
+    # ---- EI s2b: pose-aware grasp re-ranking (lightweight) ----
+    try:
+        import numpy as np
+        pose_scores = np.array([pose_conf]) if pose_conf is not None else np.array([])
+        gg.scores = rerank_grasps_by_pose_confidence(
+            gg.scores,
+            pose_scores,
+            temperature=1.0
+        )
+        print("[EI] Grasp scores re-ranked by pose confidence")
+    except Exception as e:
+        print("[EI] Re-ranking skipped:", e)
+    # ---- EI s2b: pose-aware grasp re-ranking (lightweight) ----
     vis_grasps(gg, cloud)
 
 if __name__=='__main__':
