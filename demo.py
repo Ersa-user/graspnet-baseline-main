@@ -173,21 +173,15 @@ def demo(data_dir):
         if pose_conf is None:
             print("[EI] Re-ranking skipped (pose_conf is None)")
         else:
-            # 最小可行：用 pose_conf 对所有 grasp score 做一致缩放
-            # 目的：先证明“pkl -> 引导 -> 输出变化”这条链路跑通
+            # (S4.2 evidence) log before/after to verify effect
+            print("[EI] top5 scores BEFORE:", gg.scores[:5])
             gg.scores = gg.scores * float(pose_conf)
+            print("[EI] top5 scores AFTER :", gg.scores[:5])
             print("[EI] Grasp scores re-ranked (scaled) by pose confidence")
     except Exception as e:
         print("[EI] Re-ranking skipped:", e)
-    try:
-        if pose_conf is None:
-            print("[EI] Re-ranking skipped (pose_conf is None)")
-        else:
-            gg.scores = gg.scores * float(pose_conf)
-            print("[EI] Grasp scores re-ranked (scaled) by pose confidence")
-    except Exception as e:
-        print("[EI] Re-ranking skipped:", e)
-    # ---- EI s2b: pose-aware grasp re-ranking (lightweight) ----
+    # ---- EI s2b: pose-aware grasp re-ranking (lightweight, safe) ----
+
     vis_grasps(gg, cloud)
 
 if __name__=='__main__':
