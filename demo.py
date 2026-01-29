@@ -100,6 +100,32 @@ def get_grasps(net, end_points):
     gg_array = grasp_preds[0].detach().cpu().numpy()
     gg = GraspGroup(gg_array)
     return gg
+def pose_confidence_from_diff9d(diff9d_data):
+    """
+    Supports Wild6D/NOCS-style result dict:
+      keys:
+        - pred_scores: float OR array-like
+        - pred_RTs: (N,4,4) OR (4,4)  (optional, not used here)
+    Returns:
+      float or None
+    """
+    import numpy as np
+
+    if not isinstance(diff9d_data, dict):
+        return None
+
+    if "pred_scores" not in diff9d_data:
+        return None
+
+    ps = diff9d_data["pred_scores"]
+    if isinstance(ps, (float, int)):
+        return float(ps)
+
+    # array-like
+    ps = np.asarray(ps).reshape(-1)
+    if ps.size == 0:
+        return None
+    return float(ps[0])
 
 def collision_detection(gg, cloud):
     mfcdetector = ModelFreeCollisionDetector(cloud, voxel_size=cfgs.voxel_size)
@@ -112,43 +138,53 @@ def vis_grasps(gg, cloud):
     gg.sort_by_score()
     gg = gg[:50]
     grippers = gg.to_open3d_geometry_list()
-    o3d.visualization.draw_geometries([cloud, *grippers])
+    try:
+        o3d.visualization.draw_geometries([cloud, *grippers])
+    except Exception as e:
+        print("[EI] Visualization skipped (headless?):", e)
 
 def demo(data_dir):
     net = get_net()
     end_points, cloud = get_and_process_data(data_dir)
     gg = get_grasps(net, end_points)
-    # ---- EI s2a: pose confidence (Diff9D side, no effect yet) ----
+    # ---- EI s2a: pose confidence (Diff9D side) ----
     pose_conf = None
-    try:
-        import pickle
-        if cfgs.diff9d_pkl is not None:
-            try:
-                with open(cfgs.diff9d_pkl, "rb") as f:
-                    diff9d_data = pickle.load(f)
-                pose_conf = pose_confidence_from_diff9d(diff9d_data)
-                print(f"[EI] Loaded Diff9D pkl: {cfgs.diff9d_pkl}")
+    if cfgs.diff9d_pkl is not None:
+        try:
+            import pickle
+            with open(cfgs.diff9d_pkl, "rb") as f:
+                diff9d_data = pickle.load(f)
+
+            pose_conf = pose_confidence_from_diff9d(diff9d_data)
+            print(f"[EI] Loaded Diff9D pkl: {cfgs.diff9d_pkl}")
+
+            if pose_conf is None:
+                print("[EI] Pose confidence unavailable (no pred_scores or empty)")
+            else:
                 print(f"[EI] Pose confidence = {pose_conf:.4f}")
-            except Exception as e:
-                print("[EI] Failed to load Diff9D pkl:", e)
-        else:
-            print("[EI] No Diff9D pkl provided, using grasp-only baseline")
-        print(f"[EI] Pose confidence = {pose_conf:.3f}")
-    except Exception as e:
-        print("[EI] Pose confidence unavailable:", e)
-    # ---- EI s2a: pose confidence (Diff9D side, no effect yet) ----
-    if cfgs.collision_thresh > 0:
-        gg = collision_detection(gg, np.array(cloud.points))
-    # ---- EI s2b: pose-aware grasp re-ranking (lightweight) ----
+
+        except Exception as e:
+            print(f"[EI] Failed to load Diff9D pkl: {e}")
+            pose_conf = None
+    else:
+        print("[EI] No Diff9D pkl provided, using grasp-only baseline")
+    # ---- EI s2b: pose-aware grasp re-ranking (lightweight, safe) ----
     try:
-        import numpy
-        pose_scores = np.array([pose_conf]) if pose_conf is not None else np.array([])
-        gg.scores = rerank_grasps_by_pose_confidence(
-            gg.scores,
-            pose_scores,
-            temperature=1.0
-        )
-        print("[EI] Grasp scores re-ranked by pose confidence")
+        if pose_conf is None:
+            print("[EI] Re-ranking skipped (pose_conf is None)")
+        else:
+            # 最小可行：用 pose_conf 对所有 grasp score 做一致缩放
+            # 目的：先证明“pkl -> 引导 -> 输出变化”这条链路跑通
+            gg.scores = gg.scores * float(pose_conf)
+            print("[EI] Grasp scores re-ranked (scaled) by pose confidence")
+    except Exception as e:
+        print("[EI] Re-ranking skipped:", e)
+    try:
+        if pose_conf is None:
+            print("[EI] Re-ranking skipped (pose_conf is None)")
+        else:
+            gg.scores = gg.scores * float(pose_conf)
+            print("[EI] Grasp scores re-ranked (scaled) by pose confidence")
     except Exception as e:
         print("[EI] Re-ranking skipped:", e)
     # ---- EI s2b: pose-aware grasp re-ranking (lightweight) ----
