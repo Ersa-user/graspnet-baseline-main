@@ -137,11 +137,45 @@ def vis_grasps(gg, cloud):
     gg.nms()
     gg.sort_by_score()
     gg = gg[:50]
+
+    # ===== [NEW] export cloud & grippers for third-party inspection =====
+    try:
+        import os
+
+        out_cloud_dir = os.path.join("outputs", "ei_demo", "cloud")
+        out_gripper_dir = os.path.join("outputs", "ei_demo", "grippers")
+        os.makedirs(out_cloud_dir, exist_ok=True)
+        os.makedirs(out_gripper_dir, exist_ok=True)
+
+        # export point cloud
+        o3d.io.write_point_cloud(
+            os.path.join(out_cloud_dir, "cloud.ply"),
+            cloud
+        )
+
+        # export top-1 gripper only (clean & clear)
+        if len(gg) > 0:
+            top1 = gg[0]
+            mesh = top1.to_open3d_geometry()
+            o3d.io.write_triangle_mesh(
+                os.path.join(out_gripper_dir, "gripper_top1.ply"),
+                mesh
+            )
+            print("[EI] Exported cloud.ply and gripper_top1.ply")
+        else:
+            print("[EI] No grasps to export")
+
+    except Exception as e:
+        print("[EI] Export skipped:", e)
+    # ===== [NEW] export cloud & grippers =====
+
+    # original visualization (may fail on server)
     grippers = gg.to_open3d_geometry_list()
     try:
         o3d.visualization.draw_geometries([cloud, *grippers])
     except Exception as e:
         print("[EI] Visualization skipped (headless?):", e)
+
 
 def demo(data_dir):
     net = get_net()
