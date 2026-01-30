@@ -154,6 +154,24 @@ def demo(data_dir):
             import pickle
             with open(cfgs.diff9d_pkl, "rb") as f:
                 diff9d_data = pickle.load(f)
+                # ===== [NEW] export k pose samples (pred_RTs) to txt =====
+                try:
+                    import os
+                    out_dir = os.path.join("outputs", "ei_demo", "poses")
+                    os.makedirs(out_dir, exist_ok=True)
+
+                    pred_RTs = diff9d_data.get("pred_RTs", None)
+                    if pred_RTs is None:
+                        print("[EI] pred_RTs not found in pkl, skip pose export")
+                    else:
+                        pred_RTs = np.asarray(pred_RTs)
+                        print(f"[EI] pred_RTs shape = {pred_RTs.shape}")
+                        for k in range(min(5, pred_RTs.shape[0])):
+                            np.savetxt(os.path.join(out_dir, f"pose_{k}.txt"), pred_RTs[k], fmt="%.6f")
+                        print(f"[EI] Saved pose_0~pose_4.txt to {out_dir}")
+                except Exception as e:
+                    print("[EI] Pose export skipped:", e)
+                # ===== [NEW] export k pose samples (pred_RTs) to txt =====
 
             pose_conf = pose_confidence_from_diff9d(diff9d_data)
             print(f"[EI] Loaded Diff9D pkl: {cfgs.diff9d_pkl}")
